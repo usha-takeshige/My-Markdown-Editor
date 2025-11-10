@@ -14,6 +14,7 @@ public class WindowSettings
     public double Left { get; set; } = 100;
     public double Top { get; set; } = 100;
     public WindowState WindowState { get; set; } = WindowState.Normal;
+    public string BackgroundColor { get; set; } = "#FFFFFF"; // デフォルトは白
 
     private static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
