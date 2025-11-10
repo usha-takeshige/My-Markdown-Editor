@@ -1,60 +1,131 @@
 using ICSharpCode.AvalonEdit.Highlighting;
 using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using System.IO;
+using System.Text;
 using System.Xml;
+using MyMarkdownEditor.Settings;
 
 namespace MyMarkdownEditor.Editor;
 
 /// <summary>
 /// マークダウン用のシンタックスハイライト定義を提供するクラス
-/// バージョン1.0: 見出し、太字、斜体、コードブロック、インラインコードをサポート
+/// バージョン1.1: 設定ファイルによるカスタマイズ対応
 /// </summary>
 public static class SyntaxHighlighter
 {
     /// <summary>
     /// マークダウン用のハイライト定義を取得する
     /// </summary>
+    /// <param name="settings">ハイライト設定</param>
     /// <returns>IHighlightingDefinition</returns>
-    public static IHighlightingDefinition GetMarkdownHighlighting()
+    public static IHighlightingDefinition GetMarkdownHighlighting(HighlightSettings settings)
     {
-        var xshdContent = @"<?xml version=""1.0""?>
-<SyntaxDefinition name=""Markdown"" xmlns=""http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008"">
-    <Color name=""Heading"" foreground=""#0066CC"" fontWeight=""bold"" />
-    <Color name=""Bold"" fontWeight=""bold"" />
-    <Color name=""Italic"" fontStyle=""italic"" />
-    <Color name=""Code"" foreground=""#D14"" background=""#F5F5F5"" fontFamily=""Consolas"" />
-    <Color name=""InlineCode"" foreground=""#D14"" background=""#F5F5F5"" fontFamily=""Consolas"" />
+        try
+        {
+            var xshdContent = GenerateXshd(settings);
+            using var reader = new StringReader(xshdContent);
+            using var xmlReader = XmlReader.Create(reader);
+            return HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to generate XSHD: {ex.Message}");
+            // エラー時はデフォルト設定で再試行
+            try
+            {
+                var defaultXshd = GenerateXshd(HighlightSettings.GetDefault());
+                using var reader = new StringReader(defaultXshd);
+                using var xmlReader = XmlReader.Create(reader);
+                return HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
+            }
+            catch
+            {
+                // 最終的にエラーが発生した場合はnullを返す（ハイライトなし）
+                return null!;
+            }
+        }
+    }
 
-    <RuleSet>
-        <!-- 見出し (# から ######) -->
-        <Rule color=""Heading"">
-            ^[ \t]*\#{1,6}[ \t]+.+$
-        </Rule>
+    /// <summary>
+    /// 設定値からXSHD形式のXMLを動的に生成する
+    /// </summary>
+    /// <param name="settings">ハイライト設定</param>
+    /// <returns>XSHD形式のXML文字列</returns>
+    private static string GenerateXshd(HighlightSettings settings)
+    {
+        var sb = new StringBuilder();
 
-        <!-- 太字 (**text**) - 斜体より先にマッチング -->
-        <Rule color=""Bold"">
-            \*\*[^\*]+?\*\*
-        </Rule>
+        // XMLヘッダー
+        sb.AppendLine(@"<?xml version=""1.0""?>");
+        sb.AppendLine(@"<SyntaxDefinition name=""Markdown"" xmlns=""http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008"">");
 
-        <!-- 斜体 (*text*) - 太字と競合しないよう配慮 -->
-        <Rule color=""Italic"">
-            (?&lt;!\*)\*[^\*\n]+?\*(?!\*)
-        </Rule>
+        // Color要素を動的生成
+        sb.Append(GenerateColorElement("Heading", settings.Heading));
+        sb.Append(GenerateColorElement("Bold", settings.Bold));
+        sb.Append(GenerateColorElement("Italic", settings.Italic));
+        sb.Append(GenerateColorElement("Code", settings.Code));
+        sb.Append(GenerateColorElement("InlineCode", settings.InlineCode));
 
-        <!-- インラインコード (`code`) -->
-        <Rule color=""InlineCode"">
-            `[^`\n]+?`
-        </Rule>
+        // RuleSet（正規表現パターンは固定）
+        sb.AppendLine("    <RuleSet>");
+        sb.AppendLine(@"        <!-- 見出し (# から ######) -->");
+        sb.AppendLine(@"        <Rule color=""Heading"">");
+        sb.AppendLine(@"            ^[ \t]*\#{1,6}[ \t]+.+$");
+        sb.AppendLine(@"        </Rule>");
+        sb.AppendLine();
+        sb.AppendLine(@"        <!-- 太字 (**text**) - 斜体より先にマッチング -->");
+        sb.AppendLine(@"        <Rule color=""Bold"">");
+        sb.AppendLine(@"            \*\*[^\*]+?\*\*");
+        sb.AppendLine(@"        </Rule>");
+        sb.AppendLine();
+        sb.AppendLine(@"        <!-- 斜体 (*text*) - 太字と競合しないよう配慮 -->");
+        sb.AppendLine(@"        <Rule color=""Italic"">");
+        sb.AppendLine(@"            (?&lt;!\*)\*[^\*\n]+?\*(?!\*)");
+        sb.AppendLine(@"        </Rule>");
+        sb.AppendLine();
+        sb.AppendLine(@"        <!-- インラインコード (`code`) -->");
+        sb.AppendLine(@"        <Rule color=""InlineCode"">");
+        sb.AppendLine(@"            `[^`\n]+?`");
+        sb.AppendLine(@"        </Rule>");
+        sb.AppendLine();
+        sb.AppendLine(@"        <!-- コードブロック開始マーカー (```) -->");
+        sb.AppendLine(@"        <Rule color=""Code"">");
+        sb.AppendLine(@"            ^[ \t]*```.*$");
+        sb.AppendLine(@"        </Rule>");
+        sb.AppendLine("    </RuleSet>");
+        sb.AppendLine("</SyntaxDefinition>");
 
-        <!-- コードブロック開始マーカー (```) -->
-        <Rule color=""Code"">
-            ^[ \t]*```.*$
-        </Rule>
-    </RuleSet>
-</SyntaxDefinition>";
+        return sb.ToString();
+    }
 
-        using var reader = new StringReader(xshdContent);
-        using var xmlReader = XmlReader.Create(reader);
-        return HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
+    /// <summary>
+    /// Color要素のXML文字列を生成する
+    /// </summary>
+    /// <param name="name">色定義の名前</param>
+    /// <param name="def">色定義</param>
+    /// <returns>Color要素のXML文字列</returns>
+    private static string GenerateColorElement(string name, ColorDefinition def)
+    {
+        var attributes = new List<string>();
+
+        // 設定されている属性のみを追加
+        if (!string.IsNullOrEmpty(def.Foreground))
+            attributes.Add($@"foreground=""{def.Foreground}""");
+
+        if (!string.IsNullOrEmpty(def.Background))
+            attributes.Add($@"background=""{def.Background}""");
+
+        if (!string.IsNullOrEmpty(def.FontWeight))
+            attributes.Add($@"fontWeight=""{def.FontWeight}""");
+
+        if (!string.IsNullOrEmpty(def.FontStyle))
+            attributes.Add($@"fontStyle=""{def.FontStyle}""");
+
+        if (!string.IsNullOrEmpty(def.FontFamily))
+            attributes.Add($@"fontFamily=""{def.FontFamily}""");
+
+        // 属性が1つもない場合でも空のColor要素を生成
+        var attributesStr = attributes.Count > 0 ? " " + string.Join(" ", attributes) : "";
+        return $@"    <Color name=""{name}""{attributesStr} />" + Environment.NewLine;
     }
 }
