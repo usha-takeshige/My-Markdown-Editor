@@ -269,6 +269,38 @@ public partial class MainWindow : Window
 
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // Ctrl修飾子付きのカスタムショートカットを優先処理
+        if (Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            switch (e.Key)
+            {
+                case Key.B:
+                    e.Handled = true;
+                    FormatBold();
+                    return;
+                case Key.I:
+                    e.Handled = true;
+                    FormatItalic();
+                    return;
+                case Key.D2:
+                    e.Handled = true;
+                    FormatQuote();
+                    return;
+                case Key.OemTilde: // Oem3と同じ値
+                    e.Handled = true;
+                    FormatInlineCode();
+                    return;
+                case Key.Oem6:
+                    e.Handled = true;
+                    IncreaseIndent();
+                    return;
+                case Key.OemOpenBrackets: // Oem4と同じ値
+                    e.Handled = true;
+                    DecreaseIndent();
+                    return;
+            }
+        }
+
         // Tabキーの処理（リスト行でのみインデント操作として機能）
         if (e.Key == Key.Tab)
         {
