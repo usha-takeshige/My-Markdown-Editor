@@ -21,6 +21,16 @@ public partial class MainWindow : Window
     public ICommand OpenCommand { get; }
     public ICommand SaveCommand { get; }
 
+    // テキスト整形コマンド
+    public ICommand FormatBoldCommand { get; }
+    public ICommand FormatItalicCommand { get; }
+    public ICommand FormatQuoteCommand { get; }
+    public ICommand FormatInlineCodeCommand { get; }
+
+    // インデント操作コマンド
+    public ICommand IncreaseIndentCommand { get; }
+    public ICommand DecreaseIndentCommand { get; }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -29,6 +39,16 @@ public partial class MainWindow : Window
         NewCommand = new RelayCommand(NewFile);
         OpenCommand = new RelayCommand(OpenFile);
         SaveCommand = new RelayCommand(SaveFile);
+
+        // テキスト整形コマンドの初期化
+        FormatBoldCommand = new RelayCommand(FormatBold);
+        FormatItalicCommand = new RelayCommand(FormatItalic);
+        FormatQuoteCommand = new RelayCommand(FormatQuote);
+        FormatInlineCodeCommand = new RelayCommand(FormatInlineCode);
+
+        // インデント操作コマンドの初期化
+        IncreaseIndentCommand = new RelayCommand(IncreaseIndent);
+        DecreaseIndentCommand = new RelayCommand(DecreaseIndent);
 
         DataContext = this;
 
@@ -177,8 +197,125 @@ public partial class MainWindow : Window
         settings.Save();
     }
 
+    #region テキスト整形メソッド
+
+    private void FormatBold()
+    {
+        int selectionStart = TextEditor.SelectionStart;
+        int selectionLength = TextEditor.SelectionLength;
+        int newCaretOffset = TextFormatHelper.WrapSelection(
+            TextEditor.Document, selectionStart, selectionLength, "**");
+        TextEditor.CaretOffset = newCaretOffset;
+        TextEditor.Focus();
+    }
+
+    private void FormatItalic()
+    {
+        int selectionStart = TextEditor.SelectionStart;
+        int selectionLength = TextEditor.SelectionLength;
+        int newCaretOffset = TextFormatHelper.WrapSelection(
+            TextEditor.Document, selectionStart, selectionLength, "*");
+        TextEditor.CaretOffset = newCaretOffset;
+        TextEditor.Focus();
+    }
+
+    private void FormatQuote()
+    {
+        int selectionStart = TextEditor.SelectionStart;
+        int selectionLength = TextEditor.SelectionLength;
+        int newCaretOffset = TextFormatHelper.WrapSelection(
+            TextEditor.Document, selectionStart, selectionLength, "\"");
+        TextEditor.CaretOffset = newCaretOffset;
+        TextEditor.Focus();
+    }
+
+    private void FormatInlineCode()
+    {
+        int selectionStart = TextEditor.SelectionStart;
+        int selectionLength = TextEditor.SelectionLength;
+        int newCaretOffset = TextFormatHelper.WrapSelection(
+            TextEditor.Document, selectionStart, selectionLength, "`");
+        TextEditor.CaretOffset = newCaretOffset;
+        TextEditor.Focus();
+    }
+
+    #endregion
+
+    #region インデント操作メソッド
+
+    private void IncreaseIndent()
+    {
+        int caretOffset = TextEditor.CaretOffset;
+        int newCaretOffset = TextFormatHelper.IncreaseIndent(
+            TextEditor.Document, caretOffset, useSpaces: true);
+        TextEditor.CaretOffset = newCaretOffset;
+        TextEditor.Focus();
+    }
+
+    private void DecreaseIndent()
+    {
+        int caretOffset = TextEditor.CaretOffset;
+        int newCaretOffset = TextFormatHelper.DecreaseIndent(
+            TextEditor.Document, caretOffset, useSpaces: true);
+        TextEditor.CaretOffset = newCaretOffset;
+        TextEditor.Focus();
+    }
+
+    #endregion
+
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // Ctrl修飾子付きのカスタムショートカットを優先処理
+        if (Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            switch (e.Key)
+            {
+                case Key.B:
+                    e.Handled = true;
+                    FormatBold();
+                    return;
+                case Key.I:
+                    e.Handled = true;
+                    FormatItalic();
+                    return;
+                case Key.D2:
+                    e.Handled = true;
+                    FormatQuote();
+                    return;
+                case Key.OemTilde: // Oem3と同じ値
+                    e.Handled = true;
+                    FormatInlineCode();
+                    return;
+                case Key.Oem6:
+                    e.Handled = true;
+                    IncreaseIndent();
+                    return;
+                case Key.OemOpenBrackets: // Oem4と同じ値
+                    e.Handled = true;
+                    DecreaseIndent();
+                    return;
+            }
+        }
+
+        // Tabキーの処理（リスト行でのみインデント操作として機能）
+        if (e.Key == Key.Tab)
+        {
+            // 現在行を取得
+            int caretOffset = TextEditor.CaretOffset;
+            var document = TextEditor.Document;
+            var line = document.GetLineByOffset(caretOffset);
+            string lineText = document.GetText(line.Offset, line.Length);
+
+            // リストまたは引用の場合はインデント操作
+            if (TextFormatHelper.IsListOrQuoteLine(lineText))
+            {
+                e.Handled = true; // デフォルト動作を抑制
+                IncreaseIndent();
+                return;
+            }
+            // 通常行の場合はデフォルト動作（タブ文字挿入）
+        }
+
         // Enterキーが押された場合
         if (e.Key == Key.Enter)
         {

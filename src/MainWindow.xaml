@@ -11,9 +11,20 @@
         Closing="Window_Closing">
 
     <Window.InputBindings>
+        <!-- ファイル操作 -->
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewCommand}" />
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenCommand}" />
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
+
+        <!-- テキスト整形 -->
+        <KeyBinding Key="B" Modifiers="Control" Command="{Binding FormatBoldCommand}" />
+        <KeyBinding Key="I" Modifiers="Control" Command="{Binding FormatItalicCommand}" />
+        <KeyBinding Key="D2" Modifiers="Control" Command="{Binding FormatQuoteCommand}" />
+        <KeyBinding Key="OemTilde" Modifiers="Control" Command="{Binding FormatInlineCodeCommand}" />
+
+        <!-- インデント操作 -->
+        <KeyBinding Key="Oem6" Modifiers="Control" Command="{Binding IncreaseIndentCommand}" />
+        <KeyBinding Key="OemOpenBrackets" Modifiers="Control" Command="{Binding DecreaseIndentCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
