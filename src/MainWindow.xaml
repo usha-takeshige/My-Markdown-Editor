@@ -32,6 +32,7 @@
             ShowLineNumbers="True"
             HorizontalScrollBarVisibility="Auto"
             VerticalScrollBarVisibility="Auto"
-            TextChanged="TextEditor_TextChanged" />
+            TextChanged="TextEditor_TextChanged"
+            PreviewKeyDown="TextEditor_PreviewKeyDown" />
     </DockPanel>
 </Window>

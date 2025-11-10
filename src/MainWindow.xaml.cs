@@ -176,6 +176,52 @@ public partial class MainWindow : Window
         var settings = WindowSettings.FromWindow(this);
         settings.Save();
     }
+
+    private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        // Enterキーが押された場合
+        if (e.Key == Key.Enter)
+        {
+            // 現在のキャレット位置を取得
+            int caretOffset = TextEditor.CaretOffset;
+            var document = TextEditor.Document;
+
+            // 現在行の番号を取得
+            var line = document.GetLineByOffset(caretOffset);
+            int lineNumber = line.LineNumber;
+
+            // 現在行のテキストを取得
+            string lineText = document.GetText(line.Offset, line.Length);
+
+            // 次行のプレフィックスを取得
+            string nextPrefix = MarkdownAssistant.GetNextLinePrefix(lineText, out bool shouldContinue);
+
+            if (shouldContinue && !string.IsNullOrEmpty(nextPrefix))
+            {
+                // デフォルトのEnter処理を実行させた後、プレフィックスを挿入
+                // TextInputイベント後に実行するため、Dispatcherを使用
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    // 新しい行の先頭にプレフィックスを挿入
+                    int newCaretOffset = TextEditor.CaretOffset;
+                    document.Insert(newCaretOffset, nextPrefix);
+                    TextEditor.CaretOffset = newCaretOffset + nextPrefix.Length;
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+            else if (MarkdownAssistant.IsMarkdownPattern(lineText) && !shouldContinue)
+            {
+                // コンテンツが空のリスト行でEnterを押した場合、マーカーを削除
+                e.Handled = true;
+
+                // 現在行のマーカー部分を削除
+                document.Remove(line.Offset, line.Length);
+
+                // 改行を挿入
+                document.Insert(line.Offset, Environment.NewLine);
+                TextEditor.CaretOffset = line.Offset + Environment.NewLine.Length;
+            }
+        }
+    }
 }
 
 /// <summary>
