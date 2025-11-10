@@ -56,6 +56,9 @@ public partial class MainWindow : Window
         var highlightSettings = HighlightSettings.Load();
         TextEditor.SyntaxHighlighting = SyntaxHighlighter.GetMarkdownHighlighting(highlightSettings);
 
+        // 斜体トランスフォーマーの追加（全角文字の斜体表示対応）
+        TextEditor.TextArea.TextView.LineTransformers.Add(new ItalicTransformer());
+
         // ウィンドウ設定の復元
         var settings = WindowSettings.Load();
         settings.ApplyToWindow(this);
