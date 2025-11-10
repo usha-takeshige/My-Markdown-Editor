@@ -206,7 +206,6 @@ public partial class MainWindow : Window
         int newCaretOffset = TextFormatHelper.WrapSelection(
             TextEditor.Document, selectionStart, selectionLength, "**");
         TextEditor.CaretOffset = newCaretOffset;
-        TextEditor.Select(0, 0); // 選択解除
         TextEditor.Focus();
     }
 
@@ -217,7 +216,6 @@ public partial class MainWindow : Window
         int newCaretOffset = TextFormatHelper.WrapSelection(
             TextEditor.Document, selectionStart, selectionLength, "*");
         TextEditor.CaretOffset = newCaretOffset;
-        TextEditor.Select(0, 0); // 選択解除
         TextEditor.Focus();
     }
 
@@ -228,7 +226,6 @@ public partial class MainWindow : Window
         int newCaretOffset = TextFormatHelper.WrapSelection(
             TextEditor.Document, selectionStart, selectionLength, "\"");
         TextEditor.CaretOffset = newCaretOffset;
-        TextEditor.Select(0, 0); // 選択解除
         TextEditor.Focus();
     }
 
@@ -239,7 +236,6 @@ public partial class MainWindow : Window
         int newCaretOffset = TextFormatHelper.WrapSelection(
             TextEditor.Document, selectionStart, selectionLength, "`");
         TextEditor.CaretOffset = newCaretOffset;
-        TextEditor.Select(0, 0); // 選択解除
         TextEditor.Focus();
     }
 
