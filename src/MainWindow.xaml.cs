@@ -336,15 +336,18 @@ public partial class MainWindow : Window
 
             if (shouldContinue && !string.IsNullOrEmpty(nextPrefix))
             {
-                // デフォルトのEnter処理を実行させた後、プレフィックスを挿入
-                // TextInputイベント後に実行するため、Dispatcherを使用
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    // 新しい行の先頭にプレフィックスを挿入
-                    int newCaretOffset = TextEditor.CaretOffset;
-                    document.Insert(newCaretOffset, nextPrefix);
-                    TextEditor.CaretOffset = newCaretOffset + nextPrefix.Length;
-                }), System.Windows.Threading.DispatcherPriority.Background);
+                // デフォルトのEnter処理を抑制して、自分たちで改行とプレフィックスを挿入
+                e.Handled = true;
+
+                // 改行を挿入
+                document.Insert(caretOffset, Environment.NewLine);
+
+                // 新しい行の先頭にプレフィックスを挿入
+                int newCaretOffset = caretOffset + Environment.NewLine.Length;
+                document.Insert(newCaretOffset, nextPrefix);
+
+                // カーソルをプレフィックスの後ろに移動
+                TextEditor.CaretOffset = newCaretOffset + nextPrefix.Length;
             }
             else if (MarkdownAssistant.IsMarkdownPattern(lineText) && !shouldContinue)
             {
