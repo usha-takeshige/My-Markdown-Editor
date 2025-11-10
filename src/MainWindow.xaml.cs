@@ -53,7 +53,8 @@ public partial class MainWindow : Window
         DataContext = this;
 
         // シンタックスハイライトの設定
-        TextEditor.SyntaxHighlighting = SyntaxHighlighter.GetMarkdownHighlighting();
+        var highlightSettings = HighlightSettings.Load();
+        TextEditor.SyntaxHighlighting = SyntaxHighlighter.GetMarkdownHighlighting(highlightSettings);
 
         // ウィンドウ設定の復元
         var settings = WindowSettings.Load();
