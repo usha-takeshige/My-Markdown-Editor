@@ -21,7 +21,9 @@
 | Ctrl+B | 太字 | `**選択範囲**` | `****` を挿入（カーソルを中央に配置） |
 | Ctrl+I | 斜体 | `*選択範囲*` | `**` を挿入（カーソルを中央に配置） |
 | Ctrl+2 | ダブルクォート | `"選択範囲"` | `""` を挿入（カーソルを中央に配置） |
-| Ctrl+@ | インラインコード | `` `選択範囲` `` | `` `` `` を挿入（カーソルを中央に配置） |
+| Ctrl+` | インラインコード | `` `選択範囲` `` | `` `` `` を挿入（カーソルを中央に配置） |
+
+**注**: Ctrl+` は日本語キーボード（JIS配列）の `@` キーの左横にあるバッククォートキーです。
 
 ### 2. インデント操作機能
 
@@ -232,15 +234,19 @@ private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     <KeyBinding Key="B" Modifiers="Control" Command="{Binding FormatBoldCommand}" />
     <KeyBinding Key="I" Modifiers="Control" Command="{Binding FormatItalicCommand}" />
     <KeyBinding Key="D2" Modifiers="Control" Command="{Binding FormatQuoteCommand}" />
-    <KeyBinding Key="OemAtSign" Modifiers="Control" Command="{Binding FormatInlineCodeCommand}" />
+    <KeyBinding Key="OemTilde" Modifiers="Control" Command="{Binding FormatInlineCodeCommand}" />
 
     <!-- 新規: インデント操作 -->
-    <KeyBinding Key="OemCloseBrackets" Modifiers="Control" Command="{Binding IncreaseIndentCommand}" />
+    <KeyBinding Key="Oem6" Modifiers="Control" Command="{Binding IncreaseIndentCommand}" />
     <KeyBinding Key="OemOpenBrackets" Modifiers="Control" Command="{Binding DecreaseIndentCommand}" />
 </Window.InputBindings>
 ```
 
-**注意**: `Key.OemAtSign`, `Key.OemCloseBrackets`, `Key.OemOpenBrackets`はキーボードレイアウトによって異なる場合があります。日本語キーボード（JIS配列）を前提とします。
+**注意**:
+- `Key.OemTilde`（Oem3）: バッククォート/チルダキー（`` ` ``/`~`）
+- `Key.Oem6`: 日本語キーボードでは `]` キー
+- `Key.OemOpenBrackets`（Oem4）: `[` キー
+- キーコードはキーボードレイアウトによって異なる場合があります。日本語キーボード（JIS配列）を前提とします。
 
 ---
 
