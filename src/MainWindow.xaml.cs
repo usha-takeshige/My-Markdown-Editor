@@ -1,0 +1,250 @@
+﻿using System.Diagnostics;
+using System.IO;
+using System.Windows;
+using System.Windows.Input;
+using Microsoft.Win32;
+using MyMarkdownEditor.Editor;
+using MyMarkdownEditor.FileManager;
+using MyMarkdownEditor.Settings;
+
+namespace MyMarkdownEditor;
+
+/// <summary>
+/// MainWindow.xaml の相互作用ロジック
+/// </summary>
+public partial class MainWindow : Window
+{
+    private string? _currentFilePath;
+    private bool _isModified;
+
+    public ICommand NewCommand { get; }
+    public ICommand OpenCommand { get; }
+    public ICommand SaveCommand { get; }
+
+    public MainWindow()
+    {
+        InitializeComponent();
+
+        // コマンドの初期化
+        NewCommand = new RelayCommand(NewFile);
+        OpenCommand = new RelayCommand(OpenFile);
+        SaveCommand = new RelayCommand(SaveFile);
+
+        DataContext = this;
+
+        // シンタックスハイライトの設定
+        TextEditor.SyntaxHighlighting = SyntaxHighlighter.GetMarkdownHighlighting();
+
+        // ウィンドウ設定の復元
+        var settings = WindowSettings.Load();
+        settings.ApplyToWindow(this);
+
+        // Undo/Redoの有効化（AvalonEditはデフォルトで有効）
+        TextEditor.Options.EnableHyperlinks = false;
+        TextEditor.Options.EnableEmailHyperlinks = false;
+    }
+
+    private void NewFile()
+    {
+        // 新しいウィンドウを開いて新規作成
+        var newWindow = new MainWindow();
+        newWindow.Show();
+    }
+
+    private void OpenFile()
+    {
+        if (_isModified)
+        {
+            if (!ConfirmSave())
+            {
+                return;
+            }
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            Title = "ファイルを開く"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                var content = FileService.ReadFile(dialog.FileName);
+                TextEditor.Text = content;
+                _currentFilePath = dialog.FileName;
+                _isModified = false;
+                UpdateTitle();
+            }
+            catch (IOException ex)
+            {
+                MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void SaveFile()
+    {
+        if (string.IsNullOrEmpty(_currentFilePath))
+        {
+            // 名前を付けて保存
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                DefaultExt = ".md",
+                Title = "名前を付けて保存"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                _currentFilePath = dialog.FileName;
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            FileService.SaveFile(_currentFilePath, TextEditor.Text);
+            _isModified = false;
+            UpdateTitle();
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private bool ConfirmSave()
+    {
+        var result = MessageBox.Show(
+            "変更が保存されていません。保存しますか？",
+            "確認",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question
+        );
+
+        if (result == MessageBoxResult.Yes)
+        {
+            SaveFile();
+            return !_isModified; // 保存に成功した場合のみtrue
+        }
+        else if (result == MessageBoxResult.No)
+        {
+            return true;
+        }
+
+        return false; // Cancel
+    }
+
+    private void UpdateTitle()
+    {
+        var fileName = string.IsNullOrEmpty(_currentFilePath) ? "無題" : _currentFilePath;
+        var modified = _isModified ? "*" : "";
+        Title = $"{modified}{fileName} - My Markdown Editor";
+    }
+
+    private void UpdateStatus()
+    {
+        var lineCount = TextEditor.LineCount;
+        var charCount = TextEditor.Text.Length;
+        StatusText.Text = $"文字数: {charCount} / 行数: {lineCount}";
+    }
+
+    private void TextEditor_TextChanged(object? sender, EventArgs e)
+    {
+        _isModified = true;
+        UpdateTitle();
+        UpdateStatus();
+    }
+
+    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_isModified)
+        {
+            if (!ConfirmSave())
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
+        // ウィンドウ設定の保存
+        var settings = WindowSettings.FromWindow(this);
+        settings.Save();
+    }
+
+    private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        // Enterキーが押された場合
+        if (e.Key == Key.Enter)
+        {
+            // 現在のキャレット位置を取得
+            int caretOffset = TextEditor.CaretOffset;
+            var document = TextEditor.Document;
+
+            // 現在行の番号を取得
+            var line = document.GetLineByOffset(caretOffset);
+            int lineNumber = line.LineNumber;
+
+            // 現在行のテキストを取得
+            string lineText = document.GetText(line.Offset, line.Length);
+
+            // 次行のプレフィックスを取得
+            string nextPrefix = MarkdownAssistant.GetNextLinePrefix(lineText, out bool shouldContinue);
+
+            if (shouldContinue && !string.IsNullOrEmpty(nextPrefix))
+            {
+                // デフォルトのEnter処理を実行させた後、プレフィックスを挿入
+                // TextInputイベント後に実行するため、Dispatcherを使用
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    // 新しい行の先頭にプレフィックスを挿入
+                    int newCaretOffset = TextEditor.CaretOffset;
+                    document.Insert(newCaretOffset, nextPrefix);
+                    TextEditor.CaretOffset = newCaretOffset + nextPrefix.Length;
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+            else if (MarkdownAssistant.IsMarkdownPattern(lineText) && !shouldContinue)
+            {
+                // コンテンツが空のリスト行でEnterを押した場合、マーカーを削除
+                e.Handled = true;
+
+                // 現在行のマーカー部分を削除
+                document.Remove(line.Offset, line.Length);
+
+                // 改行を挿入
+                document.Insert(line.Offset, Environment.NewLine);
+                TextEditor.CaretOffset = line.Offset + Environment.NewLine.Length;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// シンプルなRelayCommandの実装
+/// </summary>
+public class RelayCommand : ICommand
+{
+    private readonly Action _execute;
+    private readonly Func<bool>? _canExecute;
+
+    public RelayCommand(Action execute, Func<bool>? canExecute = null)
+    {
+        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+        _canExecute = canExecute;
+    }
+
+    public event EventHandler? CanExecuteChanged
+    {
+        add { CommandManager.RequerySuggested += value; }
+        remove { CommandManager.RequerySuggested -= value; }
+    }
+
+    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
+
+    public void Execute(object? parameter) => _execute();
+}

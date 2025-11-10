@@ -1,0 +1,15 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(mkdir:*)",
+            "Edit(*.sln)",
+            "Edit(*.cs)",
+            "Edit(*.csproj)",
+            "Edit(*.md)",
+            "Edit(*.xaml)"
+        ],
+        "deny": [
+            "Read(config.json)"
+        ]
+    }
+}
