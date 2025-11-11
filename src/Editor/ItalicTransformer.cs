@@ -18,10 +18,10 @@ namespace MyMarkdownEditor.Editor;
 /// FontStyle.Italicを指定しても全角文字は傾きません。
 ///
 /// 【解決策】
-/// TextEffectCollectionにSkewTransformを含むTextEffectを追加することで、
+/// IVisualLineTransformerを実装し、TextEffectCollectionにSkewTransformを含むTextEffectを追加することで、
 /// フォントの機能に依存せず、全角・半角を問わず視覚的に傾斜させて表示します。
 /// </remarks>
-public class ItalicTransformer : DocumentColorizingTransformer
+public class ItalicTransformer : IVisualLineTransformer
 {
     // 斜体パターン: *text* (ただし **text** は除外)
     private static readonly Regex ItalicPattern = new Regex(
@@ -30,45 +30,72 @@ public class ItalicTransformer : DocumentColorizingTransformer
     );
 
     /// <summary>
-    /// ドキュメントの行に対して色付け処理を実行する
+    /// ビジュアルラインの要素にトランスフォームを適用する
     /// </summary>
-    protected override void ColorizeLine(DocumentLine line)
+    public void Transform(ITextRunConstructionContext context, IList<VisualLineElement> elements)
     {
-        if (line == null)
-            return;
+        // 行のテキストを取得
+        var line = context.VisualLine.FirstDocumentLine;
+        var lineText = context.Document.GetText(line.Offset, line.Length);
 
-        var lineText = CurrentContext.Document.GetText(line);
         var matches = ItalicPattern.Matches(lineText);
 
         foreach (Match match in matches)
         {
-            // マッチした内容部分のみに適用（前後の*は除く）
             var contentGroup = match.Groups["content"];
             if (contentGroup.Success)
             {
-                int startOffset = line.Offset + contentGroup.Index;
-                int endOffset = startOffset + contentGroup.Length;
+                // マッチした内容部分のオフセット（前後の*は除く）
+                int contentStart = line.Offset + contentGroup.Index;
+                int contentEnd = contentStart + contentGroup.Length;
 
-                ChangeLinePart(startOffset, endOffset, element =>
+                // 該当範囲の要素にTextEffectを適用
+                foreach (var element in elements)
                 {
-                    // SkewTransformを含むTextEffectを適用
-                    var skewTransform = new SkewTransform(-15, 0);
+                    int elementStart = context.VisualLine.FirstDocumentLine.Offset + element.RelativeTextOffset;
+                    int elementEnd = elementStart + element.DocumentLength;
 
-                    // Typefaceも斜体に設定（半角文字で効果がある）
-                    var typeface = element.TextRunProperties.Typeface;
-                    var italicTypeface = new Typeface(
-                        typeface.FontFamily,
-                        FontStyles.Italic,
-                        typeface.Weight,
-                        typeface.Stretch
-                    );
+                    // 要素が斜体範囲内にある場合
+                    if (elementEnd > contentStart && elementStart < contentEnd)
+                    {
+                        // 新しいTextRunPropertiesを作成
+                        var baseProperties = element.TextRunProperties;
+                        var skewTransform = new SkewTransform(-15, 0);
 
-                    element.TextRunProperties = new ItalicTextRunProperties(
-                        element.TextRunProperties,
-                        italicTypeface,
-                        skewTransform
-                    );
-                });
+                        // Typefaceも斜体に設定
+                        var typeface = baseProperties.Typeface;
+                        var italicTypeface = new Typeface(
+                            typeface.FontFamily,
+                            FontStyles.Italic,
+                            typeface.Weight,
+                            typeface.Stretch
+                        );
+
+                        // リフレクションを使ってTextRunPropertiesを設定
+                        var newProperties = new ItalicTextRunProperties(
+                            baseProperties,
+                            italicTypeface,
+                            skewTransform
+                        );
+
+                        // 要素のTextRunPropertiesをリフレクションで置き換え
+                        var propertyInfo = element.GetType().GetProperty("TextRunProperties");
+                        if (propertyInfo != null && propertyInfo.CanWrite)
+                        {
+                            propertyInfo.SetValue(element, newProperties);
+                        }
+                        else
+                        {
+                            // 読み取り専用の場合、バッキングフィールドを直接変更
+                            var fieldInfo = element.GetType().GetField("<TextRunProperties>k__BackingField",
+                                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            if (fieldInfo != null)
+                            {
+                                fieldInfo.SetValue(element, newProperties);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -122,7 +149,7 @@ public class ItalicTransformer : DocumentColorizingTransformer
             }
         }
 
-        public override System.Windows.Media.TextFormatting.TextRunTypographyProperties? TypographyProperties
+        public override TextRunTypographyProperties? TypographyProperties
             => _base.TypographyProperties;
     }
 }
