@@ -15,6 +15,7 @@
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewCommand}" />
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenCommand}" />
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
+        <KeyBinding Key="W" Modifiers="Control" Command="{Binding CloseCommand}" />
 
         <!-- テキスト整形 -->
         <KeyBinding Key="B" Modifiers="Control" Command="{Binding FormatBoldCommand}" />
