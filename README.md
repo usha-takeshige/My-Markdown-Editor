@@ -3,7 +3,6 @@
 シンプルで軽量なWindowsデスクトップ向けマークダウンエディタです。
 マークダウン記法を直接編集することに特化し、プレビュー機能を持たない潔いデザインで、快適な執筆体験を提供します。
 
-![License](https://img.shields.io/badge/license-未定-lightgrey)
 ![.NET](https://img.shields.io/badge/.NET-9.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightblue)
 
@@ -266,44 +265,9 @@ My-Markdown-Editor/
 
 ---
 
-## 今後の拡張案
-
-以下は現在の実装には含まれていませんが、将来的に検討可能な機能です：
-
-- ダークモード対応
-- 複数ファイルのタブ切り替え
-- 検索・置換機能 (Ctrl+F)
-- マークダウンテーブルのサポート
-- オプショナルなプレビュー機能
-- ドラッグ&ドロップでファイルを開く
-- エクスポート機能（HTML、PDFなど）
-- スペルチェック機能
-- Git統合
-
----
-
-## ライセンス
-
-未定（後日追加予定）
-
----
-
 ## コントリビューション
 
 バグ報告や機能リクエストは [Issues](https://github.com/usha-takeshige/My-Markdown-Editor/issues) までお願いします。
-
----
-
-## 作者
-
-usha-takeshige
-
----
-
-## 謝辞
-
-- [AvalonEdit](https://github.com/icsharpcode/AvalonEdit) - 優れたテキストエディタコントロール
-- [CommonMark](https://commonmark.org/) - マークダウン仕様
 
 ---
 
