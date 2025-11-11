@@ -75,14 +75,25 @@ public partial class MainWindow : Window
 
     private void OpenFile()
     {
-        if (_isModified)
-        {
-            if (!ConfirmSave())
-            {
-                return;
-            }
-        }
+        // 現在のウィンドウの状態を判定
+        bool isNewFileAndEmpty = string.IsNullOrEmpty(_currentFilePath) &&
+                                 !_isModified &&
+                                 string.IsNullOrEmpty(TextEditor.Text);
 
+        // 新規ファイルで未編集の場合は現在のウィンドウでファイルを開く
+        if (isNewFileAndEmpty)
+        {
+            OpenFileInCurrentWindow();
+        }
+        else
+        {
+            // それ以外は新しいウィンドウを開いてファイルを開く
+            OpenFileInNewWindow();
+        }
+    }
+
+    private void OpenFileInCurrentWindow()
+    {
         var dialog = new OpenFileDialog
         {
             Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
@@ -98,6 +109,34 @@ public partial class MainWindow : Window
                 _currentFilePath = dialog.FileName;
                 _isModified = false;
                 UpdateTitle();
+            }
+            catch (IOException ex)
+            {
+                MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void OpenFileInNewWindow()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            Title = "ファイルを開く"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                // 新しいウィンドウを開いてファイルを読み込む
+                var newWindow = new MainWindow();
+                var content = FileService.ReadFile(dialog.FileName);
+                newWindow.TextEditor.Text = content;
+                newWindow._currentFilePath = dialog.FileName;
+                newWindow._isModified = false;
+                newWindow.UpdateTitle();
+                newWindow.Show();
             }
             catch (IOException ex)
             {
