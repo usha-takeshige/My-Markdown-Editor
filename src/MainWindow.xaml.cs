@@ -1,22 +1,28 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
+using MyMarkdownEditor.Commands;
 using MyMarkdownEditor.Editor;
 using MyMarkdownEditor.FileManager;
+using MyMarkdownEditor.Handlers;
+using MyMarkdownEditor.Services;
 using MyMarkdownEditor.Settings;
 
 namespace MyMarkdownEditor;
 
 /// <summary>
 /// MainWindow.xaml の相互作用ロジック
+/// リファクタリング後: DocumentServiceとKeyboardInputHandlerを使用した責任の分離
 /// </summary>
 public partial class MainWindow : Window
 {
-    private string? _currentFilePath;
-    private bool _isModified;
+    // サービス
+    private readonly DocumentService _documentService;
+    private readonly KeyboardInputHandler _keyboardHandler;
 
+    // コマンド
     public ICommand NewCommand { get; }
     public ICommand OpenCommand { get; }
     public ICommand SaveCommand { get; }
@@ -35,6 +41,26 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // サービスの初期化
+        _documentService = new DocumentService();
+
+        // KeyboardInputHandlerの初期化
+        _keyboardHandler = new KeyboardInputHandler(
+            getCaretOffset: () => TextEditor.CaretOffset,
+            setCaretOffset: (offset) => TextEditor.CaretOffset = offset,
+            getDocument: () => TextEditor.Document,
+            formatBold: FormatBold,
+            formatItalic: FormatItalic,
+            formatQuote: FormatQuote,
+            formatInlineCode: FormatInlineCode,
+            increaseIndent: IncreaseIndent,
+            decreaseIndent: DecreaseIndent
+        );
+
+        // DocumentServiceのイベント購読
+        _documentService.DocumentChanged += (s, e) => UpdateTitle();
+        _documentService.FilePathChanged += (s, e) => UpdateTitle();
 
         // コマンドの初期化
         NewCommand = new RelayCommand(NewFile);
@@ -68,19 +94,25 @@ public partial class MainWindow : Window
         TextEditor.Options.EnableEmailHyperlinks = false;
     }
 
+    #region ファイル操作メソッド
+
+    /// <summary>
+    /// 新しいウィンドウを開く
+    /// </summary>
     private void NewFile()
     {
-        // 新しいウィンドウを開いて新規作成
         var newWindow = new MainWindow();
         newWindow.Show();
     }
 
+    /// <summary>
+    /// ファイルを開く
+    /// 新規空白の場合は現在のウィンドウで、それ以外は新しいウィンドウで開く
+    /// </summary>
     private void OpenFile()
     {
         // 現在のウィンドウの状態を判定
-        bool isNewFileAndEmpty = string.IsNullOrEmpty(_currentFilePath) &&
-                                 !_isModified &&
-                                 string.IsNullOrEmpty(TextEditor.Text);
+        bool isNewFileAndEmpty = _documentService.IsNewAndEmpty(TextEditor.Text);
 
         // 新規ファイルで未編集の場合は現在のウィンドウでファイルを開く
         if (isNewFileAndEmpty)
@@ -94,86 +126,21 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 現在のウィンドウでファイルを開く
+    /// </summary>
     private void OpenFileInCurrentWindow()
     {
-        var dialog = new OpenFileDialog
-        {
-            Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            Title = "ファイルを開く"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            try
-            {
-                var content = FileService.ReadFile(dialog.FileName);
-                TextEditor.Text = content;
-                _currentFilePath = dialog.FileName;
-                _isModified = false;
-                UpdateTitle();
-            }
-            catch (IOException ex)
-            {
-                MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-    }
-
-    private void OpenFileInNewWindow()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            Title = "ファイルを開く"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            try
-            {
-                // 新しいウィンドウを開いてファイルを読み込む
-                var newWindow = new MainWindow();
-                var content = FileService.ReadFile(dialog.FileName);
-                newWindow.TextEditor.Text = content;
-                newWindow._currentFilePath = dialog.FileName;
-                newWindow._isModified = false;
-                newWindow.UpdateTitle();
-                newWindow.Show();
-            }
-            catch (IOException ex)
-            {
-                MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-    }
-
-    private void SaveFile()
-    {
-        if (string.IsNullOrEmpty(_currentFilePath))
-        {
-            // 名前を付けて保存
-            var dialog = new SaveFileDialog
-            {
-                Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
-                DefaultExt = ".md",
-                Title = "名前を付けて保存"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                _currentFilePath = dialog.FileName;
-            }
-            else
-            {
-                return;
-            }
-        }
+        var filePath = _documentService.ShowOpenFileDialog();
+        if (filePath == null)
+            return;
 
         try
         {
-            FileService.SaveFile(_currentFilePath, TextEditor.Text);
-            _isModified = false;
-            UpdateTitle();
+            var content = _documentService.LoadFile(filePath);
+            TextEditor.Text = content;
+            _documentService.SetFilePath(filePath);
+            _documentService.SetModified(false);
         }
         catch (IOException ex)
         {
@@ -181,6 +148,62 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 新しいウィンドウでファイルを開く
+    /// </summary>
+    private void OpenFileInNewWindow()
+    {
+        var filePath = _documentService.ShowOpenFileDialog();
+        if (filePath == null)
+            return;
+
+        try
+        {
+            // 新しいウィンドウを開いてファイルを読み込む
+            var newWindow = new MainWindow();
+            var content = newWindow._documentService.LoadFile(filePath);
+            newWindow.TextEditor.Text = content;
+            newWindow._documentService.SetFilePath(filePath);
+            newWindow._documentService.SetModified(false);
+            newWindow.Show();
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// ファイルを保存する
+    /// </summary>
+    private void SaveFile()
+    {
+        string? filePath = _documentService.CurrentFilePath;
+
+        // ファイルパスが未設定の場合は「名前を付けて保存」ダイアログを表示
+        if (!_documentService.HasFilePath)
+        {
+            filePath = _documentService.ShowSaveFileDialog();
+            if (filePath == null)
+                return;
+
+            _documentService.SetFilePath(filePath);
+        }
+
+        try
+        {
+            _documentService.SaveFile(filePath!, TextEditor.Text);
+            _documentService.SetModified(false);
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// ウィンドウを閉じる
+    /// </summary>
     private void CloseWindow()
     {
         // Close() を呼び出すと Window_Closing イベントが発火するため、
@@ -188,6 +211,10 @@ public partial class MainWindow : Window
         Close();
     }
 
+    /// <summary>
+    /// 未保存の変更を保存するか確認する
+    /// </summary>
+    /// <returns>閉じる処理を続行する場合はtrue、キャンセルする場合はfalse</returns>
     private bool ConfirmSave()
     {
         var result = MessageBox.Show(
@@ -200,7 +227,7 @@ public partial class MainWindow : Window
         if (result == MessageBoxResult.Yes)
         {
             SaveFile();
-            return !_isModified; // 保存に成功した場合のみtrue
+            return !_documentService.IsModified; // 保存に成功した場合のみtrue
         }
         else if (result == MessageBoxResult.No)
         {
@@ -210,42 +237,7 @@ public partial class MainWindow : Window
         return false; // Cancel
     }
 
-    private void UpdateTitle()
-    {
-        var fileName = string.IsNullOrEmpty(_currentFilePath) ? "無題" : _currentFilePath;
-        var modified = _isModified ? "*" : "";
-        Title = $"{modified}{fileName} - My Markdown Editor";
-    }
-
-    private void UpdateStatus()
-    {
-        var lineCount = TextEditor.LineCount;
-        var charCount = TextEditor.Text.Length;
-        StatusText.Text = $"文字数: {charCount} / 行数: {lineCount}";
-    }
-
-    private void TextEditor_TextChanged(object? sender, EventArgs e)
-    {
-        _isModified = true;
-        UpdateTitle();
-        UpdateStatus();
-    }
-
-    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
-    {
-        if (_isModified)
-        {
-            if (!ConfirmSave())
-            {
-                e.Cancel = true;
-                return;
-            }
-        }
-
-        // ウィンドウ設定の保存
-        var settings = WindowSettings.FromWindow(this);
-        settings.Save();
-    }
+    #endregion
 
     #region テキスト整形メソッド
 
@@ -313,8 +305,32 @@ public partial class MainWindow : Window
 
     #endregion
 
-    #region 背景色設定メソッド
+    #region UI更新メソッド
 
+    /// <summary>
+    /// タイトルバーを更新する
+    /// </summary>
+    private void UpdateTitle()
+    {
+        var fileName = _documentService.HasFilePath ? _documentService.CurrentFilePath : "無題";
+        var modified = _documentService.IsModified ? "*" : "";
+        Title = $"{modified}{fileName} - My Markdown Editor";
+    }
+
+    /// <summary>
+    /// ステータスバーを更新する
+    /// </summary>
+    private void UpdateStatus()
+    {
+        var lineCount = TextEditor.LineCount;
+        var charCount = TextEditor.Text.Length;
+        StatusText.Text = $"文字数: {charCount} / 行数: {lineCount}";
+    }
+
+    /// <summary>
+    /// 背景色を適用する
+    /// </summary>
+    /// <param name="hexColor">16進数カラーコード</param>
     private void ApplyBackgroundColor(string hexColor)
     {
         try
@@ -331,128 +347,44 @@ public partial class MainWindow : Window
 
     #endregion
 
+    #region イベントハンドラー
+
+    /// <summary>
+    /// テキストが変更されたときの処理
+    /// </summary>
+    private void TextEditor_TextChanged(object? sender, EventArgs e)
+    {
+        _documentService.SetModified(true);
+        UpdateStatus();
+    }
+
+    /// <summary>
+    /// キーボード入力の前処理
+    /// KeyboardInputHandlerに処理を委譲
+    /// </summary>
     private void TextEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // Ctrl修飾子付きのカスタムショートカットを優先処理
-        if (Keyboard.Modifiers == ModifierKeys.Control)
-        {
-            switch (e.Key)
-            {
-                case Key.B:
-                    e.Handled = true;
-                    FormatBold();
-                    return;
-                case Key.I:
-                    e.Handled = true;
-                    FormatItalic();
-                    return;
-                case Key.D2:
-                    e.Handled = true;
-                    FormatQuote();
-                    return;
-                case Key.OemTilde: // Oem3と同じ値
-                    e.Handled = true;
-                    FormatInlineCode();
-                    return;
-                case Key.Oem6:
-                    e.Handled = true;
-                    IncreaseIndent();
-                    return;
-                case Key.OemOpenBrackets: // Oem4と同じ値
-                    e.Handled = true;
-                    DecreaseIndent();
-                    return;
-            }
-        }
+        _keyboardHandler.HandlePreviewKeyDown(e);
+    }
 
-        // Tabキーの処理（リスト行でのみインデント操作として機能）
-        if (e.Key == Key.Tab)
+    /// <summary>
+    /// ウィンドウを閉じる前の処理
+    /// </summary>
+    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_documentService.IsModified)
         {
-            // 現在行を取得
-            int caretOffset = TextEditor.CaretOffset;
-            var document = TextEditor.Document;
-            var line = document.GetLineByOffset(caretOffset);
-            string lineText = document.GetText(line.Offset, line.Length);
-
-            // リストまたは引用の場合はインデント操作
-            if (TextFormatHelper.IsListOrQuoteLine(lineText))
+            if (!ConfirmSave())
             {
-                e.Handled = true; // デフォルト動作を抑制
-                IncreaseIndent();
+                e.Cancel = true;
                 return;
             }
-            // 通常行の場合はデフォルト動作（タブ文字挿入）
         }
 
-        // Enterキーが押された場合
-        if (e.Key == Key.Enter)
-        {
-            // 現在のキャレット位置を取得
-            int caretOffset = TextEditor.CaretOffset;
-            var document = TextEditor.Document;
-
-            // 現在行の番号を取得
-            var line = document.GetLineByOffset(caretOffset);
-            int lineNumber = line.LineNumber;
-
-            // 現在行のテキストを取得
-            string lineText = document.GetText(line.Offset, line.Length);
-
-            // 次行のプレフィックスを取得
-            string nextPrefix = MarkdownAssistant.GetNextLinePrefix(lineText, out bool shouldContinue);
-
-            if (shouldContinue && !string.IsNullOrEmpty(nextPrefix))
-            {
-                // デフォルトのEnter処理を抑制して、自分たちで改行とプレフィックスを挿入
-                e.Handled = true;
-
-                // 改行を挿入
-                document.Insert(caretOffset, Environment.NewLine);
-
-                // 新しい行の先頭にプレフィックスを挿入
-                int newCaretOffset = caretOffset + Environment.NewLine.Length;
-                document.Insert(newCaretOffset, nextPrefix);
-
-                // カーソルをプレフィックスの後ろに移動
-                TextEditor.CaretOffset = newCaretOffset + nextPrefix.Length;
-            }
-            else if (MarkdownAssistant.IsMarkdownPattern(lineText) && !shouldContinue)
-            {
-                // コンテンツが空のリスト行でEnterを押した場合、マーカーを削除
-                e.Handled = true;
-
-                // 現在行のマーカー部分を削除
-                document.Remove(line.Offset, line.Length);
-
-                // 改行を挿入
-                document.Insert(line.Offset, Environment.NewLine);
-                TextEditor.CaretOffset = line.Offset + Environment.NewLine.Length;
-            }
-        }
-    }
-}
-
-/// <summary>
-/// シンプルなRelayCommandの実装
-/// </summary>
-public class RelayCommand : ICommand
-{
-    private readonly Action _execute;
-    private readonly Func<bool>? _canExecute;
-
-    public RelayCommand(Action execute, Func<bool>? canExecute = null)
-    {
-        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-        _canExecute = canExecute;
+        // ウィンドウ設定の保存
+        var settings = WindowSettings.FromWindow(this);
+        settings.Save();
     }
 
-    public event EventHandler? CanExecuteChanged
-    {
-        add { CommandManager.RequerySuggested += value; }
-        remove { CommandManager.RequerySuggested -= value; }
-    }
-
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
-    public void Execute(object? parameter) => _execute();
+    #endregion
 }
