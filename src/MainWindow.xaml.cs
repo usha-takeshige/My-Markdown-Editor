@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -12,10 +13,11 @@ namespace MyMarkdownEditor;
 /// <summary>
 /// MainWindow.xaml の相互作用ロジック
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IDisposable
 {
     private string? _currentFilePath;
     private bool _isModified;
+    private bool _disposed;
 
     public ICommand NewCommand { get; }
     public ICommand OpenCommand { get; }
@@ -63,6 +65,12 @@ public partial class MainWindow : Window
         // Undo/Redoの有効化（AvalonEditはデフォルトで有効）
         TextEditor.Options.EnableHyperlinks = false;
         TextEditor.Options.EnableEmailHyperlinks = false;
+
+        // Undo/Redoスタックの制限を設定（メモリ使用量の削減）
+        if (TextEditor.Document?.UndoStack != null)
+        {
+            TextEditor.Document.UndoStack.SizeLimit = 100;
+        }
     }
 
     private void NewFile()
@@ -82,7 +90,7 @@ public partial class MainWindow : Window
             }
         }
 
-        var dialog = new OpenFileDialog
+        using var dialog = new OpenFileDialog
         {
             Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
             Title = "ファイルを開く"
@@ -110,7 +118,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(_currentFilePath))
         {
             // 名前を付けて保存
-            var dialog = new SaveFileDialog
+            using var dialog = new SaveFileDialog
             {
                 Filter = "Markdown files (*.md)|*.md|Text files (*.txt)|*.txt|All files (*.*)|*.*",
                 DefaultExt = ".md",
@@ -196,6 +204,31 @@ public partial class MainWindow : Window
         // ウィンドウ設定の保存
         var settings = WindowSettings.FromWindow(this);
         settings.Save();
+
+        // リソースのクリーンアップ
+        Dispose();
+    }
+
+    /// <summary>
+    /// リソースの解放
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        // イベントハンドラの解除
+        TextEditor.TextChanged -= TextEditor_TextChanged;
+        TextEditor.PreviewKeyDown -= TextEditor_PreviewKeyDown;
+
+        // TextEditorの破棄
+        if (TextEditor != null)
+        {
+            TextEditor.Document = null;
+        }
+
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     #region テキスト整形メソッド

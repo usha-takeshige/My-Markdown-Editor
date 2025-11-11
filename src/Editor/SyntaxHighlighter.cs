@@ -1,5 +1,6 @@
 using ICSharpCode.AvalonEdit.Highlighting;
 using ICSharpCode.AvalonEdit.Highlighting.Xshd;
+using System;
 using System.IO;
 using System.Text;
 using System.Xml;
@@ -9,40 +10,81 @@ namespace MyMarkdownEditor.Editor;
 
 /// <summary>
 /// マークダウン用のシンタックスハイライト定義を提供するクラス
-/// バージョン1.1: 設定ファイルによるカスタマイズ対応
+/// バージョン1.2: キャッシング機能を追加してメモリ効率を改善
 /// </summary>
 public static class SyntaxHighlighter
 {
+    // ハイライト定義のキャッシュ
+    private static IHighlightingDefinition? _cachedHighlighting;
+    private static string? _cachedSettingsHash;
+    private static readonly object _cacheLock = new object();
+
     /// <summary>
-    /// マークダウン用のハイライト定義を取得する
+    /// マークダウン用のハイライト定義を取得する（キャッシュ対応）
     /// </summary>
     /// <param name="settings">ハイライト設定</param>
     /// <returns>IHighlightingDefinition</returns>
     public static IHighlightingDefinition GetMarkdownHighlighting(HighlightSettings settings)
     {
-        try
+        lock (_cacheLock)
         {
-            var xshdContent = GenerateXshd(settings);
-            using var reader = new StringReader(xshdContent);
-            using var xmlReader = XmlReader.Create(reader);
-            return HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Failed to generate XSHD: {ex.Message}");
-            // エラー時はデフォルト設定で再試行
+            // 設定のハッシュを計算
+            var settingsHash = settings.GetHashCode().ToString();
+
+            // キャッシュが有効で設定が変わっていない場合は再利用
+            if (_cachedHighlighting != null && _cachedSettingsHash == settingsHash)
+            {
+                return _cachedHighlighting;
+            }
+
             try
             {
-                var defaultXshd = GenerateXshd(HighlightSettings.GetDefault());
-                using var reader = new StringReader(defaultXshd);
+                var xshdContent = GenerateXshd(settings);
+                using var reader = new StringReader(xshdContent);
                 using var xmlReader = XmlReader.Create(reader);
-                return HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
+                var highlighting = HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
+
+                // キャッシュに保存
+                _cachedHighlighting = highlighting;
+                _cachedSettingsHash = settingsHash;
+
+                return highlighting;
             }
-            catch
+            catch (Exception ex)
             {
-                // 最終的にエラーが発生した場合はnullを返す（ハイライトなし）
-                return null!;
+                System.Diagnostics.Debug.WriteLine($"Failed to generate XSHD: {ex.Message}");
+                // エラー時はデフォルト設定で再試行
+                try
+                {
+                    var defaultXshd = GenerateXshd(HighlightSettings.GetDefault());
+                    using var reader = new StringReader(defaultXshd);
+                    using var xmlReader = XmlReader.Create(reader);
+                    var highlighting = HighlightingLoader.Load(xmlReader, HighlightingManager.Instance);
+
+                    // デフォルト設定もキャッシュに保存
+                    _cachedHighlighting = highlighting;
+                    _cachedSettingsHash = HighlightSettings.GetDefault().GetHashCode().ToString();
+
+                    return highlighting;
+                }
+                catch
+                {
+                    // 最終的にエラーが発生した場合はnullを返す（ハイライトなし）
+                    return null!;
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// キャッシュをクリアする（設定変更時などに使用）
+    /// </summary>
+    public static void ClearCache()
+    {
+        lock (_cacheLock)
+        {
+            _cachedHighlighting = null;
+            _cachedSettingsHash = null;
         }
     }
 

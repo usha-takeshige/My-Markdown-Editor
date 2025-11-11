@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -6,6 +7,7 @@ namespace MyMarkdownEditor.Settings;
 
 /// <summary>
 /// シンタックスハイライトの色・スタイル設定を管理するクラス
+/// バージョン1.1: シングルトンパターンでメモリ効率を改善
 /// </summary>
 public class HighlightSettings
 {
@@ -14,6 +16,10 @@ public class HighlightSettings
         "MyMarkdownEditor"
     );
     private static readonly string SettingsFilePath = Path.Combine(SettingsDirectory, "highlight-settings.json");
+
+    // シングルトンインスタンス
+    private static HighlightSettings? _instance;
+    private static readonly object _instanceLock = new object();
 
     /// <summary>
     /// 見出しのスタイル定義
@@ -41,39 +47,61 @@ public class HighlightSettings
     public ColorDefinition InlineCode { get; set; } = new();
 
     /// <summary>
-    /// 設定ファイルから設定を読み込む
+    /// 設定ファイルから設定を読み込む（キャッシュ対応）
     /// </summary>
     /// <returns>HighlightSettingsオブジェクト（ファイルが存在しない場合はデフォルト値）</returns>
     public static HighlightSettings Load()
     {
-        try
+        lock (_instanceLock)
         {
-            if (File.Exists(SettingsFilePath))
+            // キャッシュされたインスタンスがあればそれを返す
+            if (_instance != null)
             {
-                var json = File.ReadAllText(SettingsFilePath);
-                var settings = JsonSerializer.Deserialize<HighlightSettings>(json);
-                if (settings != null)
+                return _instance;
+            }
+
+            try
+            {
+                if (File.Exists(SettingsFilePath))
                 {
-                    return settings;
+                    var json = File.ReadAllText(SettingsFilePath);
+                    var settings = JsonSerializer.Deserialize<HighlightSettings>(json);
+                    if (settings != null)
+                    {
+                        _instance = settings;
+                        return settings;
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Failed to load highlight settings: {ex.Message}");
-        }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load highlight settings: {ex.Message}");
+            }
 
-        // ファイルが存在しない場合や読み込みエラー時はデフォルト設定を生成して保存
-        var defaultSettings = GetDefault();
-        try
-        {
-            defaultSettings.Save();
+            // ファイルが存在しない場合や読み込みエラー時はデフォルト設定を生成して保存
+            var defaultSettings = GetDefault();
+            try
+            {
+                defaultSettings.Save();
+            }
+            catch
+            {
+                // 保存に失敗してもデフォルト設定を返す
+            }
+            _instance = defaultSettings;
+            return defaultSettings;
         }
-        catch
+    }
+
+    /// <summary>
+    /// キャッシュをクリアして次回読み込み時にファイルから再読み込みする
+    /// </summary>
+    public static void ClearCache()
+    {
+        lock (_instanceLock)
         {
-            // 保存に失敗してもデフォルト設定を返す
+            _instance = null;
         }
-        return defaultSettings;
     }
 
     /// <summary>
@@ -139,6 +167,35 @@ public class HighlightSettings
             }
         };
     }
+
+    /// <summary>
+    /// ハッシュコードを取得する（キャッシング用）
+    /// </summary>
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(
+            Heading.GetHashCode(),
+            Bold.GetHashCode(),
+            Italic.GetHashCode(),
+            Code.GetHashCode(),
+            InlineCode.GetHashCode()
+        );
+    }
+
+    /// <summary>
+    /// 等価性を判定する
+    /// </summary>
+    public override bool Equals(object? obj)
+    {
+        if (obj is not HighlightSettings other)
+            return false;
+
+        return Heading.Equals(other.Heading) &&
+               Bold.Equals(other.Bold) &&
+               Italic.Equals(other.Italic) &&
+               Code.Equals(other.Code) &&
+               InlineCode.Equals(other.InlineCode);
+    }
 }
 
 /// <summary>
@@ -170,4 +227,27 @@ public class ColorDefinition
     /// フォントファミリー - フォント名（例: "Consolas", "Meiryo UI"）
     /// </summary>
     public string? FontFamily { get; set; }
+
+    /// <summary>
+    /// ハッシュコードを取得する（キャッシング用）
+    /// </summary>
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Foreground, Background, FontWeight, FontStyle, FontFamily);
+    }
+
+    /// <summary>
+    /// 等価性を判定する
+    /// </summary>
+    public override bool Equals(object? obj)
+    {
+        if (obj is not ColorDefinition other)
+            return false;
+
+        return Foreground == other.Foreground &&
+               Background == other.Background &&
+               FontWeight == other.FontWeight &&
+               FontStyle == other.FontStyle &&
+               FontFamily == other.FontFamily;
+    }
 }
