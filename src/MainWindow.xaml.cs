@@ -59,6 +59,7 @@ public partial class MainWindow : Window
         // ウィンドウ設定の復元
         var settings = WindowSettings.Load();
         settings.ApplyToWindow(this);
+        ApplyBackgroundColor(settings.BackgroundColor);
 
         // Undo/Redoの有効化（AvalonEditはデフォルトで有効）
         TextEditor.Options.EnableHyperlinks = false;
@@ -260,6 +261,24 @@ public partial class MainWindow : Window
             TextEditor.Document, caretOffset, useSpaces: true);
         TextEditor.CaretOffset = newCaretOffset;
         TextEditor.Focus();
+    }
+
+    #endregion
+
+    #region 背景色設定メソッド
+
+    private void ApplyBackgroundColor(string hexColor)
+    {
+        try
+        {
+            var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
+            TextEditor.Background = new System.Windows.Media.SolidColorBrush(color);
+        }
+        catch
+        {
+            // 無効な色の場合はデフォルトの白を使用
+            TextEditor.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+        }
     }
 
     #endregion

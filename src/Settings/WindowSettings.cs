@@ -14,6 +14,7 @@ public class WindowSettings
     public double Left { get; set; } = 100;
     public double Top { get; set; } = 100;
     public WindowState WindowState { get; set; } = WindowState.Normal;
+    public string BackgroundColor { get; set; } = "#FFFFFF"; // デフォルトは白
 
     private static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -84,13 +85,17 @@ public class WindowSettings
     /// <returns>WindowSettingsオブジェクト</returns>
     public static WindowSettings FromWindow(Window window)
     {
+        // 既存の設定を読み込んでBackgroundColorを保持
+        var existingSettings = Load();
+
         return new WindowSettings
         {
             Width = window.Width,
             Height = window.Height,
             Left = window.Left,
             Top = window.Top,
-            WindowState = window.WindowState
+            WindowState = window.WindowState,
+            BackgroundColor = existingSettings.BackgroundColor
         };
     }
 }
