@@ -3,6 +3,7 @@ using ICSharpCode.AvalonEdit.Rendering;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.TextFormatting;
 
 namespace MyMarkdownEditor.Editor;
 
