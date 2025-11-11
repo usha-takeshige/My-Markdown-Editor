@@ -25,9 +25,6 @@
         <!-- インデント操作 -->
         <KeyBinding Key="Oem6" Modifiers="Control" Command="{Binding IncreaseIndentCommand}" />
         <KeyBinding Key="OemOpenBrackets" Modifiers="Control" Command="{Binding DecreaseIndentCommand}" />
-
-        <!-- 設定 -->
-        <KeyBinding Key="K" Modifiers="Control" Command="{Binding ChangeBackgroundColorCommand}" />
     </Window.InputBindings>
 
     <DockPanel>

@@ -31,9 +31,6 @@ public partial class MainWindow : Window
     public ICommand IncreaseIndentCommand { get; }
     public ICommand DecreaseIndentCommand { get; }
 
-    // 設定コマンド
-    public ICommand ChangeBackgroundColorCommand { get; }
-
     public MainWindow()
     {
         InitializeComponent();
@@ -52,9 +49,6 @@ public partial class MainWindow : Window
         // インデント操作コマンドの初期化
         IncreaseIndentCommand = new RelayCommand(IncreaseIndent);
         DecreaseIndentCommand = new RelayCommand(DecreaseIndent);
-
-        // 設定コマンドの初期化
-        ChangeBackgroundColorCommand = new RelayCommand(ChangeBackgroundColor);
 
         DataContext = this;
 
@@ -284,21 +278,6 @@ public partial class MainWindow : Window
         {
             // 無効な色の場合はデフォルトの白を使用
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
-        }
-    }
-
-    private void ChangeBackgroundColor()
-    {
-        var inputDialog = new BackgroundColorDialog(WindowSettings.Load().BackgroundColor);
-        if (inputDialog.ShowDialog() == true)
-        {
-            string newColor = inputDialog.SelectedColor;
-            ApplyBackgroundColor(newColor);
-
-            // 設定を保存
-            var settings = WindowSettings.FromWindow(this);
-            settings.BackgroundColor = newColor;
-            settings.Save();
         }
     }
 
