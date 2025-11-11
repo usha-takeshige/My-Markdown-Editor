@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     public ICommand NewCommand { get; }
     public ICommand OpenCommand { get; }
     public ICommand SaveCommand { get; }
+    public ICommand CloseCommand { get; }
 
     // テキスト整形コマンド
     public ICommand FormatBoldCommand { get; }
@@ -39,6 +40,7 @@ public partial class MainWindow : Window
         NewCommand = new RelayCommand(NewFile);
         OpenCommand = new RelayCommand(OpenFile);
         SaveCommand = new RelayCommand(SaveFile);
+        CloseCommand = new RelayCommand(CloseWindow);
 
         // テキスト整形コマンドの初期化
         FormatBoldCommand = new RelayCommand(FormatBold);
@@ -177,6 +179,13 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(ex.Message, "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void CloseWindow()
+    {
+        // Close() を呼び出すと Window_Closing イベントが発火するため、
+        // 未保存の変更がある場合は自動的に確認ダイアログが表示される
+        Close();
     }
 
     private bool ConfirmSave()
