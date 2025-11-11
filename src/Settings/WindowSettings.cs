@@ -85,13 +85,17 @@ public class WindowSettings
     /// <returns>WindowSettingsオブジェクト</returns>
     public static WindowSettings FromWindow(Window window)
     {
+        // 既存の設定を読み込んでBackgroundColorを保持
+        var existingSettings = Load();
+
         return new WindowSettings
         {
             Width = window.Width,
             Height = window.Height,
             Left = window.Left,
             Top = window.Top,
-            WindowState = window.WindowState
+            WindowState = window.WindowState,
+            BackgroundColor = existingSettings.BackgroundColor
         };
     }
 }
