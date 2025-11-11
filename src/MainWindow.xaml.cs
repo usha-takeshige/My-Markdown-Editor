@@ -272,12 +272,12 @@ public partial class MainWindow : Window
         try
         {
             var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
-            Background = new System.Windows.Media.SolidColorBrush(color);
+            TextEditor.Background = new System.Windows.Media.SolidColorBrush(color);
         }
         catch
         {
             // 無効な色の場合はデフォルトの白を使用
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+            TextEditor.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
         }
     }
 
